@@ -19,7 +19,8 @@ public class SearchService {
     }
 
     public List<Result> submitQuery(String query) {
-        var searchResponse = esClient.search(query);
+        Integer page = 1;
+        var searchResponse = esClient.search(query, page);
         List<Hit<ObjectNode>> hits = searchResponse.hits().hits();
 
         var resultsList = hits.stream().map(h ->
@@ -30,6 +31,9 @@ public class SearchService {
                         .readingTime(h.source().get("reading_time").asInt())
                         .dateCreation(h.source().get("dt_creation").asText())
         ).collect(Collectors.toList());
+
+        long totalHits = searchResponse.hits().total().value();
+        System.out.println("Total de hits: " + totalHits);
 
         return resultsList;
     }
