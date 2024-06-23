@@ -1,6 +1,8 @@
 package com.elasticsearch.search.domain;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
+import co.elastic.clients.elasticsearch._types.query_dsl.MatchPhraseQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.MatchQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
@@ -59,13 +61,25 @@ public class EsClient {
     }
 
     public SearchResponse search(String query, Integer page) {
+        // Query Match para incluir no Must
         Query matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
+
+        // Query MatchPhtase para incluir no Should
+        Query matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
+
+        // BoolQuery com o Must e Should
+        Query boolQuery = BoolQuery.of(b -> b
+                .must(matchQuery)
+                .should(matchPhraseQuery))
+                ._toQuery();
 
         SearchResponse<ObjectNode> response;
         try {
             response = elasticsearchClient.search(s -> s
-                .index("wikipedia").from((page - 1) * 10).size(PAGE_SIZE)
-                .query(matchQuery), ObjectNode.class
+                .index("wikipedia")
+                .from((page - 1) * PAGE_SIZE)
+                .size(PAGE_SIZE)
+                .query(boolQuery), ObjectNode.class
             );
         } catch (IOException e) {
             throw new RuntimeException(e);
