@@ -25,7 +25,7 @@ import java.io.IOException;
 @Component
 public class EsClient {
     private ElasticsearchClient elasticsearchClient;
-    private static Integer PAGE_SIZE = 10;
+    private static final Integer PAGE_SIZE = 10;
 
     public EsClient() {
         createConnection();
@@ -64,7 +64,7 @@ public class EsClient {
         // Query Match para incluir no Must
         Query matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
 
-        // Query MatchPhtase para incluir no Should
+        // Query MatchPhrase para incluir no Should
         Query matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
 
         // BoolQuery com o Must e Should

@@ -17,6 +17,11 @@ paths:
           description: Query to be submitted
           schema:
             type: string
+        - name: page
+          in: query
+          description: Page number
+          schema:
+            type: integer
       responses:
         200:
           description: OK

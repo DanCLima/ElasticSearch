@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static java.util.Objects.isNull;
+
 @Service
 public class SearchService {
 
@@ -18,8 +20,13 @@ public class SearchService {
         this.esClient = esClient;
     }
 
-    public List<Result> submitQuery(String query) {
-        Integer page = 1;
+    public List<Result> submitQuery(String query, Integer page) {
+//        Integer page;
+
+        if (isNull(page) || page <= 0) {
+            page = 1;
+        }
+
         var searchResponse = esClient.search(query, page);
         List<Hit<ObjectNode>> hits = searchResponse.hits().hits();
 
