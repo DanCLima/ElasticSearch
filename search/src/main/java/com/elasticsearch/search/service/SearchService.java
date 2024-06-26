@@ -2,6 +2,7 @@ package com.elasticsearch.search.service;
 
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import com.elasticsearch.search.api.model.Result;
+import com.elasticsearch.search.api.model.ResultResults;
 import com.elasticsearch.search.domain.EsClient;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
@@ -20,9 +21,8 @@ public class SearchService {
         this.esClient = esClient;
     }
 
-    public List<Result> submitQuery(String query, Integer page) {
-//        Integer page;
-
+    // Ao invés de retornar uma lista com os resultados, vai retornar a quantidade de hits mais uma lista com os resultados
+    public Result submitQuery(String query, Integer page) {
         if (isNull(page) || page <= 0) {
             page = 1;
         }
@@ -30,19 +30,21 @@ public class SearchService {
         var searchResponse = esClient.search(query, page);
         List<Hit<ObjectNode>> hits = searchResponse.hits().hits();
 
-        var resultsList = hits.stream().map(h ->
-                new Result()
-                        .abs(treatContent(h.source().get("content").asText()))
-                        .title(h.source().get("title").asText())
-                        .url(h.source().get("url").asText())
-                        .readingTime(h.source().get("reading_time").asInt())
-                        .dateCreation(h.source().get("dt_creation").asText())
-        ).collect(Collectors.toList());
+        var result = new Result();
+        result.setTotalHits((int) searchResponse.hits().total().value());
+        result.setResults(
+                hits.stream().map(h -> {
+                            return new ResultResults()
+                                    .abs(treatContent(h.source().get("content").asText()))
+                                    .title(h.source().get("title").asText())
+                                    .url(h.source().get("url").asText())
+                                    .readingTime(h.source().get("reading_time").asInt())
+                                    .dateCreation(h.source().get("dt_creation").asText());
+                        }
+                ).collect(Collectors.toList())
+        );
 
-        long totalHits = searchResponse.hits().total().value();
-        System.out.println("Total de hits: " + totalHits);
-
-        return resultsList;
+        return result;
     }
 
     private String treatContent(String content) {
