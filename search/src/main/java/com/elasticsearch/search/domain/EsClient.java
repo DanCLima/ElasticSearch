@@ -6,6 +6,9 @@ import co.elastic.clients.elasticsearch._types.query_dsl.MatchPhraseQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.MatchQuery;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Highlight;
+import co.elastic.clients.elasticsearch.core.search.HighlightField;
+import co.elastic.clients.elasticsearch.core.search.HighlighterType;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -20,7 +23,10 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.elasticsearch.client.RestClient;
 import org.springframework.stereotype.Component;
 
+import javax.swing.text.Highlighter;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 @Component
 public class EsClient {
@@ -70,16 +76,31 @@ public class EsClient {
         // BoolQuery com o Must e Should
         Query boolQuery = BoolQuery.of(b -> b
                 .must(matchQuery)
-                .should(matchPhraseQuery))
-                ._toQuery();
+                .should(matchPhraseQuery)
+        )._toQuery();
+
+        Map<String, HighlightField> map = new HashMap<>();
+        map.put("content", HighlightField.of(h -> h
+                .preTags("<strong>")
+                .postTags("</strong>")
+                .numberOfFragments(1)
+                .fragmentSize(400)
+        ));
+
+        Highlight highlight = Highlight.of(h -> h
+                .type(HighlighterType.Unified)
+                .fields(map)
+        );
 
         SearchResponse<ObjectNode> response;
+
         try {
             response = elasticsearchClient.search(s -> s
                 .index("wikipedia")
                 .from((page - 1) * PAGE_SIZE)
                 .size(PAGE_SIZE)
-                .query(boolQuery), ObjectNode.class
+                .query(boolQuery)
+                .highlight(highlight), ObjectNode.class
             );
         } catch (IOException e) {
             throw new RuntimeException(e);

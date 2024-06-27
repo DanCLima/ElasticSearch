@@ -21,7 +21,7 @@ public class SearchService {
         this.esClient = esClient;
     }
 
-    // Ao invés de retornar uma lista com os resultados, vai retornar a quantidade de hits mais uma lista com os resultados
+    // Retorna a quantidade de hits mais uma lista com os resultados
     public Result submitQuery(String query, Integer page) {
         if (isNull(page) || page <= 0) {
             page = 1;
@@ -39,11 +39,11 @@ public class SearchService {
                                     .title(h.source().get("title").asText())
                                     .url(h.source().get("url").asText())
                                     .readingTime(h.source().get("reading_time").asInt())
-                                    .dateCreation(h.source().get("dt_creation").asText());
-                        }
+                                    .dateCreation(h.source().get("dt_creation").asText())
+                                    .highlight(h.highlight().get("content").get(0));
+                            }
                 ).collect(Collectors.toList())
         );
-
         return result;
     }
 
