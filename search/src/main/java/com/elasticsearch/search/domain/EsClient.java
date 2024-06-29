@@ -1,10 +1,7 @@
 package com.elasticsearch.search.domain;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
-import co.elastic.clients.elasticsearch._types.query_dsl.BoolQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.MatchPhraseQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.MatchQuery;
-import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Highlight;
 import co.elastic.clients.elasticsearch.core.search.HighlightField;
@@ -27,11 +24,26 @@ import javax.swing.text.Highlighter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static java.util.Objects.isNull;
 
 @Component
 public class EsClient {
     private ElasticsearchClient elasticsearchClient;
     private static final Integer PAGE_SIZE = 10;
+
+    public static String extractBetweenQuotes(String input) {
+        String regex = "\"(.*?)\"";
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(input);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
 
     public EsClient() {
         createConnection();
@@ -67,17 +79,27 @@ public class EsClient {
     }
 
     public SearchResponse search(String query, Integer page) {
-        // Query Match para incluir no Must
-        Query matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
+        Query matchQuery, matchPhraseQuery, boolQuery;
 
-        // Query MatchPhrase para incluir no Should
-        Query matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
+        // Extrai a parte da string que estiver entre aspas
+        String betweenQuotes = extractBetweenQuotes(query);
 
-        // BoolQuery com o Must e Should
-        Query boolQuery = BoolQuery.of(b -> b
-                .must(matchQuery)
-                .should(matchPhraseQuery)
-        )._toQuery();
+        // Se não houver conteúdo entre aspas, realiza uma busca padrão
+        if (isNull(betweenQuotes)) {
+            matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
+            matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
+
+            // O must exige uma busca comum e o should aumenta a relevância de correspondências exatas com o match phrase
+            boolQuery = BoolQuery.of(b -> b.must(matchQuery).should(matchPhraseQuery))._toQuery();
+
+        // Se houver conteúdo entre aspas, realiza uma busca personalizada
+        } else {
+            matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
+            matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(betweenQuotes))._toQuery();
+
+            // O must exige correspondência exata com o match pgrase, enquanto o should inclui a busca padrão para o restante do conteúdo
+            boolQuery = BoolQuery.of(b -> b.must(matchPhraseQuery).should(matchQuery))._toQuery();
+        }
 
         Map<String, HighlightField> map = new HashMap<>();
         map.put("content", HighlightField.of(h -> h
