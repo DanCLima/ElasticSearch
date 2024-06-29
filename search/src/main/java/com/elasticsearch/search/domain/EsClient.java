@@ -79,26 +79,26 @@ public class EsClient {
     }
 
     public SearchResponse search(String query, Integer page) {
-        Query matchQuery, matchPhraseQuery, boolQuery;
+        Query multiMatchQuery, matchPhraseQuery, boolQuery;
 
         // Extrai a parte da string que estiver entre aspas
         String betweenQuotes = extractBetweenQuotes(query);
 
         // Se não houver conteúdo entre aspas, realiza uma busca padrão
         if (isNull(betweenQuotes)) {
-            matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
+            multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
             matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
 
             // O must exige uma busca comum e o should aumenta a relevância de correspondências exatas com o match phrase
-            boolQuery = BoolQuery.of(b -> b.must(matchQuery).should(matchPhraseQuery))._toQuery();
+            boolQuery = BoolQuery.of(b -> b.must(multiMatchQuery).should(matchPhraseQuery))._toQuery();
 
         // Se houver conteúdo entre aspas, realiza uma busca personalizada
         } else {
-            matchQuery = MatchQuery.of(q -> q.field("content").query(query))._toQuery();
             matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(betweenQuotes))._toQuery();
+            multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
 
             // O must exige correspondência exata com o match pgrase, enquanto o should inclui a busca padrão para o restante do conteúdo
-            boolQuery = BoolQuery.of(b -> b.must(matchPhraseQuery).should(matchQuery))._toQuery();
+            boolQuery = BoolQuery.of(b -> b.must(matchPhraseQuery).should(multiMatchQuery))._toQuery();
         }
 
         Map<String, HighlightField> map = new HashMap<>();
