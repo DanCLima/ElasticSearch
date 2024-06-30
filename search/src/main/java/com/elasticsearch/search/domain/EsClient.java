@@ -1,12 +1,16 @@
 package com.elasticsearch.search.domain;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldSort;
+import co.elastic.clients.elasticsearch._types.SortOptions;
+import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.*;
 import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Highlight;
 import co.elastic.clients.elasticsearch.core.search.HighlightField;
 import co.elastic.clients.elasticsearch.core.search.HighlighterType;
+import co.elastic.clients.json.JsonData;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
@@ -49,6 +53,75 @@ public class EsClient {
         return null;
     }
 
+    private void setQuery (String query) {
+        Query multiMatchQuery, matchPhraseQuery;
+
+        // Extrai da string query o conteúdo que estiver entre aspas (se houver)
+        String betweenQuotes = extractBetweenQuotes(query);
+
+        // Se não houver conteúdo entre aspas, realiza uma busca padrão
+        if (betweenQuotes == null) {
+            multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
+            matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
+
+            // O must exige uma busca comum e o should aumenta a relevância de correspondências exatas com o match phrase
+            queryBuilder = queryBuilder.must(multiMatchQuery).should(matchPhraseQuery);
+
+            // Se houver conteúdo entre aspas, realiza uma busca personalizada
+        } else {
+            matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(betweenQuotes))._toQuery();
+            multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
+
+            // O must exige correspondência exata com o match pgrase, enquanto o should inclui a busca padrão para o restante do conteúdo
+            queryBuilder = queryBuilder.must(matchPhraseQuery).should(multiMatchQuery);
+        }
+    }
+
+    private void setFilter(Filter filter) {
+        Query filterQuery;
+        String field = filter.getField().getValue();
+        String value = filter.getValue();
+
+        if (filter.getOrder().getValue().equals("gte")) {
+            filterQuery = RangeQuery.of(r -> r
+                    .field(field)
+                    .gte(JsonData.of(value))
+            )._toQuery();
+        } else {
+            filterQuery = RangeQuery.of(r -> r
+                    .field(field)
+                    .lte(JsonData.of(value))
+            )._toQuery();
+        }
+
+        queryBuilder = queryBuilder.filter(filterQuery);
+    }
+
+    private void setSort(Sort sort) {
+        SortOptions sortOptions;
+        SortOrder sortOrder;
+
+        String field = sort.getField().getValue();
+        String order = sort.getOrder().getValue();
+
+        if (order.equals("asc")) {
+            sortOrder = SortOrder.Asc;
+        } else {
+            sortOrder = SortOrder.Desc;
+        }
+
+        System.out.println("SortField: " + field + " SortOrder: " + sortOrder);
+
+        sortOptions = SortOptions.of(s -> s
+                .field(FieldSort.of(f -> f
+                        .field(field)
+                        .order(sortOrder)
+                ))
+        );
+
+        searchBuilder = searchBuilder.sort(sortOptions);
+    }
+
     public EsClient() {
         createConnection();
     }
@@ -86,26 +159,15 @@ public class EsClient {
         this.queryBuilder = new BoolQuery.Builder();
         this.searchBuilder = new SearchRequest.Builder();
 
-        Query multiMatchQuery, matchPhraseQuery;
+        setQuery(query);
+        if (filter != null) {
+            setFilter(filter);
+            System.out.println("ENTROU NO FILTRO");
+        }
 
-        // Extrai a parte da string que estiver entre aspas
-        String betweenQuotes = extractBetweenQuotes(query);
-
-        // Se não houver conteúdo entre aspas, realiza uma busca padrão
-        if (isNull(betweenQuotes)) {
-            multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
-            matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
-
-            // O must exige uma busca comum e o should aumenta a relevância de correspondências exatas com o match phrase
-            queryBuilder = queryBuilder.must(multiMatchQuery).should(matchPhraseQuery);
-
-        // Se houver conteúdo entre aspas, realiza uma busca personalizada
-        } else {
-            matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(betweenQuotes))._toQuery();
-            multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
-
-            // O must exige correspondência exata com o match pgrase, enquanto o should inclui a busca padrão para o restante do conteúdo
-            queryBuilder = queryBuilder.must(matchPhraseQuery).should(multiMatchQuery);
+        if (sort != null) {
+            setSort(sort);
+            System.out.println("ENTROU NO SORT");
         }
 
         Map<String, HighlightField> map = new HashMap<>();

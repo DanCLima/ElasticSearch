@@ -26,7 +26,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [dateCreation, readingTime]
+            enum: [date_creation, reading_time]
         - name: filterValue
           in: query
           schema:
@@ -45,7 +45,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [dateCreation, readingTime]
+            enum: [date_creation, reading_time]
       responses:
         200:
           description: OK
@@ -77,9 +77,9 @@ components:
                 type: string
               abs:
                 type: string
-              readingTime:
+              reading_time:
                 type: integer
-              dateCreation:
+              date_creation:
                 type: string
               highlight:
                 type: string
@@ -100,7 +100,7 @@ components:
       properties:
         field:
           type: string
-          enum: [dateCreation, readingTime]
+          enum: [date_creation, reading_time]
         order:
           type: string
           enum: [lte, gte]
@@ -114,7 +114,7 @@ components:
       properties:
         field:
           type: string
-          enum: [dateCreation, readingTime]
+          enum: [date_creation, reading_time]
         order:
           type: string
           enum: [asc, desc]
