@@ -22,6 +22,30 @@ paths:
           description: Page number
           schema:
             type: integer
+        - name: filterField
+          in: query
+          schema:
+            type: string
+            enum: [dateCreation, readingTime]
+        - name: filterValue
+          in: query
+          schema:
+            type: string
+        - name: filterOrder
+          in: query
+          schema:
+            type: string
+            enum: [lte, gte]
+        - name: sort
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+        - name: sortField
+          in: query
+          schema:
+            type: string
+            enum: [dateCreation, readingTime]
       responses:
         200:
           description: OK
@@ -67,3 +91,30 @@ components:
         message:
           description: A human readable error message
           type: string
+    Filter:
+      type: object
+      required:
+        - field
+        - order
+        - value
+      properties:
+        field:
+          type: string
+          enum: [dateCreation, readingTime]
+        order:
+          type: string
+          enum: [lte, gte]
+        value:
+          type: string
+    Sort:
+      type: object
+      required:
+        - field
+        - order
+      properties:
+        field:
+          type: string
+          enum: [dateCreation, readingTime]
+        order:
+          type: string
+          enum: [asc, desc]

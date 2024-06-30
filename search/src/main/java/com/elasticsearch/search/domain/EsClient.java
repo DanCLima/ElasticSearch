@@ -2,6 +2,7 @@ package com.elasticsearch.search.domain;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.query_dsl.*;
+import co.elastic.clients.elasticsearch.core.SearchRequest;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Highlight;
 import co.elastic.clients.elasticsearch.core.search.HighlightField;
@@ -9,6 +10,7 @@ import co.elastic.clients.elasticsearch.core.search.HighlighterType;
 import co.elastic.clients.json.jackson.JacksonJsonpMapper;
 import co.elastic.clients.transport.ElasticsearchTransport;
 import co.elastic.clients.transport.rest_client.RestClientTransport;
+import com.elasticsearch.search.api.model.*;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import nl.altindag.ssl.SSLFactory;
 import org.apache.http.HttpHost;
@@ -31,6 +33,8 @@ import static java.util.Objects.isNull;
 
 @Component
 public class EsClient {
+    private BoolQuery.Builder queryBuilder;
+    private SearchRequest.Builder searchBuilder;
     private ElasticsearchClient elasticsearchClient;
     private static final Integer PAGE_SIZE = 10;
 
@@ -78,8 +82,11 @@ public class EsClient {
         elasticsearchClient = new co.elastic.clients.elasticsearch.ElasticsearchClient(transport);
     }
 
-    public SearchResponse search(String query, Integer page) {
-        Query multiMatchQuery, matchPhraseQuery, boolQuery;
+    public SearchResponse search(String query, Integer page, Filter filter, Sort sort) {
+        this.queryBuilder = new BoolQuery.Builder();
+        this.searchBuilder = new SearchRequest.Builder();
+
+        Query multiMatchQuery, matchPhraseQuery;
 
         // Extrai a parte da string que estiver entre aspas
         String betweenQuotes = extractBetweenQuotes(query);
@@ -90,7 +97,7 @@ public class EsClient {
             matchPhraseQuery = MatchPhraseQuery.of(q -> q.field("content").query(query))._toQuery();
 
             // O must exige uma busca comum e o should aumenta a relevância de correspondências exatas com o match phrase
-            boolQuery = BoolQuery.of(b -> b.must(multiMatchQuery).should(matchPhraseQuery))._toQuery();
+            queryBuilder = queryBuilder.must(multiMatchQuery).should(matchPhraseQuery);
 
         // Se houver conteúdo entre aspas, realiza uma busca personalizada
         } else {
@@ -98,7 +105,7 @@ public class EsClient {
             multiMatchQuery = MultiMatchQuery.of(m -> m.fields("content", "title").query(query))._toQuery();
 
             // O must exige correspondência exata com o match pgrase, enquanto o should inclui a busca padrão para o restante do conteúdo
-            boolQuery = BoolQuery.of(b -> b.must(matchPhraseQuery).should(multiMatchQuery))._toQuery();
+            queryBuilder = queryBuilder.must(matchPhraseQuery).should(multiMatchQuery);
         }
 
         Map<String, HighlightField> map = new HashMap<>();
@@ -116,14 +123,14 @@ public class EsClient {
 
         SearchResponse<ObjectNode> response;
 
-        try {
-            response = elasticsearchClient.search(s -> s
+        searchBuilder = searchBuilder
                 .index("wikipedia")
                 .from((page - 1) * PAGE_SIZE)
                 .size(PAGE_SIZE)
-                .query(boolQuery)
-                .highlight(highlight), ObjectNode.class
-            );
+                .query(queryBuilder.build()._toQuery());
+
+        try {
+            response = elasticsearchClient.search(searchBuilder.highlight(highlight).build(), ObjectNode.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
