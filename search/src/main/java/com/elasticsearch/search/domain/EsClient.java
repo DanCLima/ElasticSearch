@@ -26,14 +26,11 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.elasticsearch.client.RestClient;
 import org.springframework.stereotype.Component;
 
-import javax.swing.text.Highlighter;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static java.util.Objects.isNull;
 
 @Component
 public class EsClient {
@@ -42,7 +39,7 @@ public class EsClient {
     private ElasticsearchClient elasticsearchClient;
     private static final Integer PAGE_SIZE = 10;
 
-    public static String extractBetweenQuotes(String input) {
+    private String extractBetweenQuotes(String input) {
         String regex = "\"(.*?)\"";
         Pattern pattern = Pattern.compile(regex);
         Matcher matcher = pattern.matcher(input);
@@ -51,6 +48,10 @@ public class EsClient {
             return matcher.group(1);
         }
         return null;
+    }
+
+    private String extractYear(String date) {
+        return date.substring(0, 4);
     }
 
     private void setQuery (String query) {
@@ -81,16 +82,28 @@ public class EsClient {
         Query filterQuery;
         String field = filter.getField().getValue();
         String value = filter.getValue();
+        final String finalField;
+
+        if (field.equals("date_creation")) {
+            finalField = "dt_creation";
+            if (value.length() == 4) {
+                value = value + "-01-01";
+            }
+        } else {
+            finalField = field;
+        }
+
+        final String finalValue = value;
 
         if (filter.getOrder().getValue().equals("gte")) {
             filterQuery = RangeQuery.of(r -> r
-                    .field(field)
-                    .gte(JsonData.of(value))
+                    .field(finalField)
+                    .gte(JsonData.of(finalValue))
             )._toQuery();
         } else {
             filterQuery = RangeQuery.of(r -> r
-                    .field(field)
-                    .lte(JsonData.of(value))
+                    .field(finalField)
+                    .lte(JsonData.of(finalValue))
             )._toQuery();
         }
 
@@ -103,6 +116,7 @@ public class EsClient {
 
         String field = sort.getField().getValue();
         String order = sort.getOrder().getValue();
+        final String finalField;
 
         if (order.equals("asc")) {
             sortOrder = SortOrder.Asc;
@@ -110,11 +124,15 @@ public class EsClient {
             sortOrder = SortOrder.Desc;
         }
 
-        System.out.println("SortField: " + field + " SortOrder: " + sortOrder);
+        if (field.equals("date_creation")) {
+            finalField  = "dt_creation";
+        } else {
+            finalField = field;
+        }
 
         sortOptions = SortOptions.of(s -> s
                 .field(FieldSort.of(f -> f
-                        .field(field)
+                        .field(finalField)
                         .order(sortOrder)
                 ))
         );
@@ -162,12 +180,10 @@ public class EsClient {
         setQuery(query);
         if (filter != null) {
             setFilter(filter);
-            System.out.println("ENTROU NO FILTRO");
         }
 
         if (sort != null) {
             setSort(sort);
-            System.out.println("ENTROU NO SORT");
         }
 
         Map<String, HighlightField> map = new HashMap<>();
